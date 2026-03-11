@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-formation
+  namespace: formation
+spec:
+  hard:
+    pods: "20"                  # max 20 pods dans le namespace
+    requests.cpu: "2"           # CPU total demandé
+    requests.memory: "2Gi"      # RAM totale demandée
+    limits.cpu: "4"             # CPU total maximum
+    limits.memory: "4Gi"        # RAM totale maximum

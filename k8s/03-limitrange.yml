@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limitrange-labo
+  namespace: labo
+spec:
+  limits:
+    - type: Container
+      default:             # limits appliquées si non définies
+        cpu: "100m"
+        memory: "64Mi"
+      defaultRequest:      # requests appliquées si non définies
+        cpu: "50m"
+        memory: "32Mi"
+      max:                 # plafond absolu par conteneur
+        cpu: "500m"
+        memory: "256Mi"
+      min:                 # plancher par conteneur
+        cpu: "10m"
+        memory: "8Mi"

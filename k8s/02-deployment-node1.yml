@@ -1,0 +1,124 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-node1
+  namespace: labo
+  labels:
+    app: hello-node1
+    version: "1.0"
+spec:
+  replicas: 2                         # 2 pods sur le nœud 1
+  selector:
+    matchLabels:
+      app: hello-node1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1                     # max 1 pod supplémentaire pendant le update
+      maxUnavailable: 0               # aucun pod indisponible pendant le update
+  template:
+    metadata:
+      labels:
+        app: hello-node1
+        version: "1.0"
+    spec:
+      # ── Placement : nœud 1 uniquement ──────────────────────────────────────
+      nodeSelector:
+        role: node1                   # uniquement les nœuds avec ce label
+
+      # ── Hardening : contexte de sécurité du pod ───────────────────────────
+      securityContext:
+        runAsNonRoot: true            # interdit de tourner en root
+        runAsUser: 101                # UID nginx
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault        # profil seccomp par défaut du runtime
+
+      # ── Anti-affinité : éviter 2 pods sur le même nœud ───────────────────
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: hello-node1
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: hello-node1
+          image: hello-html:1.0
+          imagePullPolicy: Never
+
+          # ── Hardening : droits du conteneur ──────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false   # interdit l'escalade de privilèges
+            readOnlyRootFilesystem: true       # système de fichiers en lecture seule
+            capabilities:
+              drop:
+                - ALL                          # supprime toutes les capabilities Linux
+              add:
+                - NET_BIND_SERVICE             # autorise nginx à binder le port 80
+
+          ports:
+            - containerPort: 80
+              name: http
+
+          # ── Ressources : requests et limits obligatoires ──────────────────
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
+          # ── Santé du pod ─────────────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          # ── Volume temporaire pour nginx (filesystem read-only) ───────────
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+            - name: cache-dir
+              mountPath: /var/cache/nginx
+            - name: run-dir
+              mountPath: /var/run
+
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}
+        - name: cache-dir
+          emptyDir: {}
+        - name: run-dir
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-node1
+  namespace: labo
+spec:
+  selector:
+    app: hello-node1
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30091
